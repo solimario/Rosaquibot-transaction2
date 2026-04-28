@@ -1,0 +1,15 @@
+# Credenciales y configuración real
+cfg/.env
+
+# Datos e histórico (contienen información real de transacciones)
+Data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs
+*.log
