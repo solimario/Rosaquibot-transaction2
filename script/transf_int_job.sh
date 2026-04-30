@@ -160,6 +160,13 @@ export MAIL_BUILD_TIME="$(TZ=UTC+5 date '+%d/%m/%Y %H:%M')"
 python3.11 "$BASE_DIR/script/send_mail.py"
 echo "$(TZ=UTC+5 date) - ✅ Correo enviado en $(( $(date +%s) - _T0 ))s"
 
+# ============================ SYNC ONEDRIVE (opcional) ============================
+if [ "${ONEDRIVE_SYNC:-false}" = "true" ]; then
+    echo "$(TZ=UTC+5 date) - ☁️  Sincronizando CSV con OneDrive"
+    ARCHIVO_ONEDRIVE="$ARCHIVO_DESTINO" \
+    bash "$BASE_DIR/script/sync_onedrive.sh" || echo "$(TZ=UTC+5 date) - ⚠️  OneDrive sync falló — archivo local conservado"
+fi
+
 # ============================ LIMPIEZA FINAL ============================
 echo "$(TZ=UTC+5 date) - 🧹 Limpiando archivos temporales"
 rm -f "$OUTPUT_XLS" "$OUTPUT_CSV"
