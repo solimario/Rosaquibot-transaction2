@@ -134,7 +134,7 @@ echo "$(TZ=UTC+5 date) - 📤 Cargando CSV a MySQL tabla transferencia_interna"
 _T0=$(date +%s)
 mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" --local-infile=1 -e "
 LOAD DATA LOCAL INFILE '$SQL_LOAD_FILE'
-INTO TABLE transferencia_interna
+IGNORE INTO TABLE transferencia_interna
 CHARACTER SET UTF8
 FIELDS TERMINATED BY ','
 LINES TERMINATED BY '\n'
