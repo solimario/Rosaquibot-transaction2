@@ -168,8 +168,19 @@ Ver guía completa de configuración Azure AD y obtención del Drive ID: [`docs/
 
 ---
 
+## Garantías del proceso
+
+| Garantía | Cómo está implementada |
+|---|---|
+| **Idempotente** | `LOAD DATA IGNORE` + `UNIQUE KEY (origen_numero, destino_numero, fecha, hora, monto, tipo)` — re-ejecuciones y cargas por rango no generan duplicados |
+| **Sin ejecuciones concurrentes** | `flock` sobre `/tmp/transf_int.lock` — una segunda instancia simultánea aborta inmediatamente |
+| **Sin movimientos** | Si el CSV no tiene filas de datos, se envía correo de aviso y el proceso termina limpio (exit 0), sin cargar nada a MySQL |
+| **SharePoint seguro** | El archivo local se borra **solo** si la subida recibe HTTP 2xx; si falla, el archivo queda en `Data/historico/` y el job continúa sin error |
+| **Limpieza solo al final** | Los archivos XLS y CSV temporales se eliminan al final del proceso, después de confirmar la carga MySQL y el correo enviado |
+
+---
+
 ## Notas de seguridad
 
 - `cfg/.env` y `Data/` están en `.gitignore`. **Nunca subir credenciales ni datos de transacciones reales al repositorio.**
-- El script usa `flock` para evitar ejecuciones concurrentes.
 - El `SP_CLIENT_SECRET` en `cfg/.env` contiene credenciales Azure AD — no commitear.
