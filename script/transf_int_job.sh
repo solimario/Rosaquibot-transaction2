@@ -72,7 +72,7 @@ else
 fi
 
 # ============================ DEFINIR RUTAS ============================
-BASE_DIR="/home/drosadio/Rosaquibot-transaction2"
+BASE_DIR="/home/drosadio/proyectos/Rosaquibot-transaction2"
 ENV_FILE="$BASE_DIR/cfg/.env"
 DESTINO="$BASE_DIR/Data"
 OUTPUT_XLS="$DESTINO/test2_${FECHA_YMD}.xls"
@@ -87,6 +87,11 @@ mkdir -p "$DESTINO" "$HISTORICO"
 
 # ============================ CARGAR VARIABLES DE ENTORNO ============================
 source "$ENV_FILE"
+
+# ============================ FLAGS DE ETAPAS (default true — retrocompatible) ============================
+ENABLE_DB="${ENABLE_DB:-true}"
+ENABLE_MAIL="${ENABLE_MAIL:-true}"
+ENABLE_SHAREPOINT="${ENABLE_SHAREPOINT:-true}"
 
 # ============================ VALIDACIÓN DE VARIABLES CLAVE ============================
 for var in CLARO_USER CLARO_PASS DB_HOST DB_USER DB_PASS DB_NAME MAIL_REMITENTE SMTP_APP_PASSWORD; do
@@ -114,15 +119,17 @@ echo "$(TZ=UTC+5 date) - ✅ CSV generado en $(( $(date +%s) - _T0 ))s"
 _filas_datos=$(tail -n +2 "$OUTPUT_CSV" | grep -c . 2>/dev/null || echo 0)
 if [ "$_filas_datos" -eq 0 ]; then
     echo "$(TZ=UTC+5 date) - ⚠️  Sin movimientos para el período ${FECHA_ASUNTO_HUM}."
-    echo "$(TZ=UTC+5 date) - 📧 Enviando aviso de período sin actividad..."
-    MAIL_SIN_DATOS=true \
-    MAIL_DESTINATARIOS="diego.rosadio1096@gmail.com,gerencia@rosaqui.com,alonso.guicon@gmail.com,recarga.lm@rosaqui.com" \
-    MAIL_ASUNTO="📭 [GRUPO ROSAQUI SAC] Sin movimientos – Transferencias Internas – ${FECHA_ASUNTO_HUM}" \
-    MAIL_LOGO="$BASE_DIR/img/logo_rosaqui.jpg" \
-    MAIL_JOB_NAME="${JOB_NAME:-Grupo-Robot-Transf_Int}" \
-    MAIL_BUILD_TIME="$(TZ=UTC+5 date '+%d/%m/%Y %H:%M')" \
-    MAIL_FECHA_PERIODO="${FECHA_ASUNTO_HUM}" \
-    python3.11 "$BASE_DIR/script/send_mail.py" || true
+    if [ "$ENABLE_MAIL" = "true" ]; then
+        echo "$(TZ=UTC+5 date) - 📧 Enviando aviso de período sin actividad..."
+        MAIL_SIN_DATOS=true \
+        MAIL_DESTINATARIOS="diego.rosadio1096@gmail.com,gerencia@rosaqui.com,alonso.guicon@gmail.com,recarga.lm@rosaqui.com" \
+        MAIL_ASUNTO="📭 [GRUPO ROSAQUI SAC] Sin movimientos – Transferencias Internas – ${FECHA_ASUNTO_HUM}" \
+        MAIL_LOGO="$BASE_DIR/img/logo_rosaqui.jpg" \
+        MAIL_JOB_NAME="${JOB_NAME:-Grupo-Robot-Transf_Int}" \
+        MAIL_BUILD_TIME="$(TZ=UTC+5 date '+%d/%m/%Y %H:%M')" \
+        MAIL_FECHA_PERIODO="${FECHA_ASUNTO_HUM}" \
+        python3.11 "$BASE_DIR/script/send_mail.py" || true
+    fi
     rm -f "$OUTPUT_XLS" "$OUTPUT_CSV"
     echo "$(TZ=UTC+5 date) - 🏁 Proceso finalizado correctamente (sin datos)."
     exit 0
@@ -130,9 +137,10 @@ fi
 echo "$(TZ=UTC+5 date) - 📊 Filas a procesar: ${_filas_datos}"
 
 # ============================ CARGA DEL CSV A MYSQL ============================
-echo "$(TZ=UTC+5 date) - 📤 Cargando CSV a MySQL tabla transferencia_interna"
-_T0=$(date +%s)
-mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" --local-infile=1 -e "
+if [ "$ENABLE_DB" = "true" ]; then
+    echo "$(TZ=UTC+5 date) - 📤 Cargando CSV a MySQL tabla transferencia_interna"
+    _T0=$(date +%s)
+    mysql --skip-ssl -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" --local-infile=1 -e "
 LOAD DATA LOCAL INFILE '$SQL_LOAD_FILE'
 IGNORE INTO TABLE transferencia_interna
 CHARACTER SET UTF8
@@ -141,30 +149,38 @@ LINES TERMINATED BY '\n'
 IGNORE 1 ROWS
 (origen_nombre, origen_numero, origen_categoria, destino_nombre, destino_numero, destino_categoria, tipo, producto, monto, fecha, hora);
 "
-echo "$(TZ=UTC+5 date) - ✅ Carga MySQL completada en $(( $(date +%s) - _T0 ))s"
+    echo "$(TZ=UTC+5 date) - ✅ Carga MySQL completada en $(( $(date +%s) - _T0 ))s"
+else
+    echo "$(TZ=UTC+5 date) - ⏭️  ENABLE_DB=false — carga a MySQL omitida"
+fi
 
 # ============================ HISTÓRICO Y ENVÍO DE CORREO ============================
-echo "$(TZ=UTC+5 date) - 🗂️ Guardando histórico y enviando correo"
-_T0=$(date +%s)
-
 ARCHIVO_DESTINO="$HISTORICO/transferencia_interna_${FECHA_YMD}.csv"
 cp "$OUTPUT_CSV" "$ARCHIVO_DESTINO"
+echo "$(TZ=UTC+5 date) - 🗂️ Histórico guardado: $ARCHIVO_DESTINO"
 
-export MAIL_DESTINATARIOS="diego.rosadio1096@gmail.com,gerencia@rosaqui.com,alonso.guicon@gmail.com,recarga.lm@rosaqui.com"
-export MAIL_ADJUNTO="$ARCHIVO_DESTINO"
-export MAIL_ASUNTO="📑 [GRUPO ROSAQUI SAC] Resumen Diario – Transferencias Internas – ${FECHA_ASUNTO_HUM}"
-export MAIL_LOGO="$BASE_DIR/img/logo_rosaqui.jpg"
-export MAIL_JOB_NAME="${JOB_NAME:-Grupo-Robot-Transf_Int}"
-export MAIL_BUILD_TIME="$(TZ=UTC+5 date '+%d/%m/%Y %H:%M')"
+if [ "$ENABLE_MAIL" = "true" ]; then
+    echo "$(TZ=UTC+5 date) - 📧 Enviando correo"
+    _T0=$(date +%s)
+    export MAIL_DESTINATARIOS="diego.rosadio1096@gmail.com,gerencia@rosaqui.com,alonso.guicon@gmail.com,recarga.lm@rosaqui.com"
+    export MAIL_ADJUNTO="$ARCHIVO_DESTINO"
+    export MAIL_ASUNTO="📑 [GRUPO ROSAQUI SAC] Resumen Diario – Transferencias Internas – ${FECHA_ASUNTO_HUM}"
+    export MAIL_LOGO="$BASE_DIR/img/logo_rosaqui.jpg"
+    export MAIL_JOB_NAME="${JOB_NAME:-Grupo-Robot-Transf_Int}"
+    export MAIL_BUILD_TIME="$(TZ=UTC+5 date '+%d/%m/%Y %H:%M')"
+    python3.11 "$BASE_DIR/script/send_mail.py"
+    echo "$(TZ=UTC+5 date) - ✅ Correo enviado en $(( $(date +%s) - _T0 ))s"
+else
+    echo "$(TZ=UTC+5 date) - ⏭️  ENABLE_MAIL=false — correo omitido"
+fi
 
-python3.11 "$BASE_DIR/script/send_mail.py"
-echo "$(TZ=UTC+5 date) - ✅ Correo enviado en $(( $(date +%s) - _T0 ))s"
-
-# ============================ SYNC ONEDRIVE (opcional) ============================
-if [ "${ONEDRIVE_SYNC:-false}" = "true" ]; then
-    echo "$(TZ=UTC+5 date) - ☁️  Sincronizando CSV con OneDrive"
+# ============================ SYNC SHAREPOINT (opcional) ============================
+if [ "$ENABLE_SHAREPOINT" = "true" ]; then
+    echo "$(TZ=UTC+5 date) - ☁️  Sincronizando CSV con OneDrive/SharePoint"
     ARCHIVO_ONEDRIVE="$ARCHIVO_DESTINO" \
-    bash "$BASE_DIR/script/sync_onedrive.sh" || echo "$(TZ=UTC+5 date) - ⚠️  OneDrive sync falló — archivo local conservado"
+    bash "$BASE_DIR/script/sync_onedrive.sh" || echo "$(TZ=UTC+5 date) - ⚠️  SharePoint sync falló — archivo local conservado"
+else
+    echo "$(TZ=UTC+5 date) - ⏭️  ENABLE_SHAREPOINT=false — sync omitido"
 fi
 
 # ============================ LIMPIEZA FINAL ============================
