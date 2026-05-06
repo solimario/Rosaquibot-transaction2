@@ -507,17 +507,6 @@ def html_cascade(dac_nom, dac_to_v, dac_to_s, dac_to_b, dac_recv,
 
 
 # ==================== GENERAR SECCIONES HTML ====================
-cards = (
-    summary_card("Total recibido",  total_transf, C_BLUE,   "por bodegas")
-  + summary_card("Total devuelto",  total_anul,   C_RED,    "anulaciones")
-  + summary_card("Ventas netas",    neto,  C_GREEN if neto >= 0 else C_RED, "")
-  + (f"<div style='display:inline-block;background:#F0F4FF;border-left:4px solid {C_PURPLE};"
-     f"padding:10px 16px;margin:4px 8px 4px 0;border-radius:4px;min-width:130px'>"
-     f"<div style='font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px'>Bodegas activas</div>"
-     f"<div style='font-size:18px;font-weight:bold;color:{C_PURPLE};margin-top:2px'>{n_bodegas}</div>"
-     f"</div>")
-)
-
 activity_cards = html_activity_cards(peak_hour, peak_txn, pct_ppal, avg_ticket, total_bh_txn)
 chart_horas    = html_hourly_chart(hourly, peak_hour, hora_max_disp)
 top5_html      = html_top5_bodegas(df_bod)
@@ -567,7 +556,6 @@ html_body = f"""<!DOCTYPE html>
         (Prepago + Recaudación) del período indicado.
       </p>
 
-      <div style="margin-bottom:4px">{cards}</div>
       {activity_cards}
 
       {chart_horas}
